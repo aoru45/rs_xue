@@ -1,0 +1,11 @@
+MANIFEST.in
+README.md
+setup.py
+rs_xue/__init__.py
+rs_xue/rs_xue.cpython-312-x86_64-linux-gnu.so
+rs_xue.egg-info/PKG-INFO
+rs_xue.egg-info/SOURCES.txt
+rs_xue.egg-info/dependency_links.txt
+rs_xue.egg-info/not-zip-safe
+rs_xue.egg-info/requires.txt
+rs_xue.egg-info/top_level.txt

@@ -1,0 +1,3 @@
+include rs_xue/*.so
+include README.md
+include LICENSE
