@@ -125,7 +125,11 @@ bool RealtimeLidarClient::initialize(const std::string& lidar_ip,
         param_.input_param.difop_port = difop_port;            // DIFOP端口
         param_.lidar_type = lidar_type;                        // LiDAR类型
 
-        param_.decoder_param.dense_points = true;
+        param_.decoder_param.dense_points = false;
+        param_.decoder_param.min_distance = 0.1;
+        param_.decoder_param.max_distance = 300;
+        //param_.decoder_param.ts_first_point = true;
+        param_.decoder_param.wait_for_difop = false;
         
         // 如果提供了LiDAR IP，设置组播相关参数
         if (!lidar_ip.empty() && lidar_ip != "192.168.1.200") {
@@ -273,20 +277,19 @@ void RealtimeLidarClient::convertPointCloudMsg(const std::shared_ptr<PointCloudM
     }
     
     // 预分配内存
-    point_cloud.x.reserve(N);
-    point_cloud.y.reserve(N);
-    point_cloud.z.reserve(N);
-    point_cloud.intensity.reserve(N);
-    point_cloud.timestamp.reserve(N);
+    point_cloud.x.resize(N);
+    point_cloud.y.resize(N);
+    point_cloud.z.resize(N);
+    point_cloud.intensity.resize(N);
+    point_cloud.timestamp.resize(N);
     
     for (size_t i = 0; i < N; ++i) {
         const auto& point = msg->points[i];
-        
-        point_cloud.x.push_back(-point.y);
-        point_cloud.y.push_back(point.x);
-        point_cloud.z.push_back(point.z);
-        point_cloud.intensity.push_back(point.intensity);
-        point_cloud.timestamp.push_back(point.timestamp);
+        point_cloud.x[i] = -point.y;
+        point_cloud.y[i] = point.x;
+        point_cloud.z[i] = point.z;
+        point_cloud.intensity[i] = point.intensity;
+        point_cloud.timestamp[i] = point.timestamp;
     }
     
     point_cloud.frame_id = msg->seq;
