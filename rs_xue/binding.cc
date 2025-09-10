@@ -27,6 +27,8 @@ PYBIND11_MODULE(rs_xue, m) {
              py::arg("lidar_ip"))
         .def("get", &rs_realtime::RealtimeLidarClient::get_numpy,
              "Get point cloud data as numpy array with shape (N, 3) containing [x, y, z] coordinates")
+        .def("set_calib", &rs_realtime::RealtimeLidarClient::set_calib,
+             "Set calibration parameters R (3x3) and t (3x1)")
         .def("stop", &rs_realtime::RealtimeLidarClient::stop,
              "Stop the LiDAR client");
 }

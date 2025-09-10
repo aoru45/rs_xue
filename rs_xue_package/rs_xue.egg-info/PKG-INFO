@@ -1,4 +1,4 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.1
 Name: rs_xue
 Version: 1.0.0
 Summary: RealSense LiDAR Python Interface By Xue
@@ -15,9 +15,3 @@ Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Requires-Python: >=3.8
 Requires-Dist: numpy
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: requires-dist
-Dynamic: requires-python
-Dynamic: summary

@@ -285,9 +285,16 @@ void RealtimeLidarClient::convertPointCloudMsg(const std::shared_ptr<PointCloudM
     
     for (size_t i = 0; i < N; ++i) {
         const auto& point = msg->points[i];
-        point_cloud.x[i] = -point.y;
-        point_cloud.y[i] = point.x;
-        point_cloud.z[i] = point.z;
+        float x = -point.y;
+        float y = point.x;
+        float z = point.z;
+
+        float x_new =  calib_R_[0] * x + calib_R_[1] * y + calib_R_[2] * z + calib_t_[0];
+        float y_new =  calib_R_[3] * x + calib_R_[4] * y + calib_R_[5] * z + calib_t_[1];
+        float z_new =  calib_R_[6] * x + calib_R_[7] * y + calib_R_[8] * z + calib_t_[2];
+        point_cloud.x[i] = x_new;
+        point_cloud.y[i] = y_new;
+        point_cloud.z[i] = z_new;
         point_cloud.intensity[i] = point.intensity;
         point_cloud.timestamp[i] = point.timestamp;
     }
@@ -348,6 +355,19 @@ py::object RealtimeLidarClient::get_numpy() {
     }
     
     return result;
+}
+
+void RealtimeLidarClient::set_calib(const py::array_t<float>& R,
+                            const py::array_t<float>& t) {
+    const float* R_data = static_cast<const float*>(R.request().ptr);
+    const float* t_data = static_cast<const float*>(t.request().ptr);
+    calib_R_ = {R_data[0], R_data[1], R_data[2], R_data[3], R_data[4], R_data[5], R_data[6], R_data[7], R_data[8]};
+    calib_t_ = {t_data[0], t_data[1], t_data[2]};
+
+    RS_INFO << "set calib R: " << calib_R_[0] << " " << calib_R_[1] << " " << calib_R_[2] << " " 
+            << calib_R_[3] << " " << calib_R_[4] << " " << calib_R_[5] << " " 
+            << calib_R_[6] << " " << calib_R_[7] << " " << calib_R_[8] << RS_REND;
+    RS_INFO << "set calib t: " << calib_t_[0] << " " << calib_t_[1] << " " << calib_t_[2] << RS_REND;
 }
 
 } // namespace rs_realtime

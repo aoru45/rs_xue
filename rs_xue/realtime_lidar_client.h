@@ -23,6 +23,7 @@
 #endif
 
 using namespace robosense::lidar;
+namespace py = pybind11;
 typedef PointXYZIT PointT;
 typedef PointCloudT<PointT> PointCloudMsg;
 
@@ -102,7 +103,7 @@ public:
      * @brief 获取最新一帧点云数据
      */
     bool get(PointCloudData& point_cloud);
-    
+ 
     /**
      * @brief 获取点云数据作为NumPy数组
      * @return pybind11::object NumPy数组或None
@@ -152,6 +153,9 @@ public:
      */
     std::string get_last_error() const;
 
+    void set_calib(const py::array_t<float>& R,
+                            const py::array_t<float>& t);
+
 private:
     std::unique_ptr<LidarDriver<PointCloudMsg>> driver_;       // RoboSense驱动
     RSDriverParam param_;                                      // 驱动参数
@@ -174,6 +178,9 @@ private:
     std::atomic<bool> initialized_;                            // 初始化状态
     std::atomic<bool> running_;                                // 运行状态
     std::atomic<bool> connected_;                              // 连接状态
+                                                               //
+    std::array<float, 9> calib_R_ {1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f};
+    std::array<float, 3> calib_t_ {0.f, 0.f, 0.f};
     
     // 错误处理
     mutable std::mutex error_mutex_;                           // 错误信息互斥锁
@@ -190,8 +197,6 @@ private:
     // 数据转换函数
     void convertPointCloudMsg(const std::shared_ptr<PointCloudMsg>& msg, 
                              PointCloudData& point_cloud);
-    
- 
     
     // 工具函数
     void set_error(const std::string& error);
