@@ -364,10 +364,6 @@ void RealtimeLidarClient::set_calib(const py::array_t<float>& R,
     calib_R_ = {R_data[0], R_data[1], R_data[2], R_data[3], R_data[4], R_data[5], R_data[6], R_data[7], R_data[8]};
     calib_t_ = {t_data[0], t_data[1], t_data[2]};
 
-    RS_INFO << "set calib R: " << calib_R_[0] << " " << calib_R_[1] << " " << calib_R_[2] << " " 
-            << calib_R_[3] << " " << calib_R_[4] << " " << calib_R_[5] << " " 
-            << calib_R_[6] << " " << calib_R_[7] << " " << calib_R_[8] << RS_REND;
-    RS_INFO << "set calib t: " << calib_t_[0] << " " << calib_t_[1] << " " << calib_t_[2] << RS_REND;
 }
 
 } // namespace rs_realtime
