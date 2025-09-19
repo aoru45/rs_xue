@@ -115,8 +115,8 @@ R = np.eye(3, dtype=np.float32)
 # Translation vector (3,)
 t = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
-# Distance range [min_range, max_range]
-ranges = np.array([0.5, 100.0], dtype=np.float32)
+# Distance range [x_min_range, x_max_range, y...]， 
+ranges = np.array([0.5, 100.0， 0.5, 100.0， 0.5, 100.0], dtype=np.float32)
 
 result = rs_xue.convert_pcap_with_calib(
     from_name="input.pcap",
