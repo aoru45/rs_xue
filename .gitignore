@@ -2,3 +2,8 @@
 *.pyc
 *.so
 build/
+crs_xue_package/rs_xue
+*.pth
+*.obj
+rs_xue_package/rs_xue.egg-info
+tools/*

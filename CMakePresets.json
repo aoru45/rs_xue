@@ -1,0 +1,37 @@
+{
+    "version": 2,
+    "configurePresets": [
+        {
+            "name": "vcpkg",
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+            }
+        },
+        {
+            "name": "ubuntu",
+            "generator": "Unix Makefiles",
+            "displayName": "GCC 13.2.0 x86_64-linux-gnu",
+            "description": "正在使用编译器: C = /usr/bin/gcc-13, CXX = /usr/bin/g++-13",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_C_COMPILER": "/usr/bin/gcc-13",
+                "CMAKE_CXX_COMPILER": "/usr/bin/g++-13",
+                "CMAKE_TOOLCHAIN_FILE": "/opt/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "vcpkg",
+            "configurePreset": "vcpkg"
+        },
+        {
+            "name": "ubuntu",
+            "configurePreset": "ubuntu",
+            "jobs": 12
+        }
+    ]
+}

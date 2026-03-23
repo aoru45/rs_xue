@@ -15,6 +15,7 @@
 
 // RoboSense SDK includes
 #include <rs_driver/api/lidar_driver.hpp>
+#include "avi_writer.h"
 
 #ifdef ENABLE_PCL_POINTCLOUD
 #include <rs_driver/msg/pcl_point_cloud_msg.hpp>
@@ -81,7 +82,7 @@ public:
      * @param lidar_ip 传感器的IP地址
      * @return true 初始化成功，false 初始化失败
      */
-    bool initialize(const std::string& lidar_ip);
+    bool open(const std::string& lidar_ip, std::string save_path="");
     
     /**
      * @brief 完整的初始化接口
@@ -156,6 +157,7 @@ public:
     void set_calib(const py::array_t<float>& R,
                             const py::array_t<float>& t);
 
+
 private:
     std::unique_ptr<LidarDriver<PointCloudMsg>> driver_;       // RoboSense驱动
     RSDriverParam param_;                                      // 驱动参数
@@ -173,6 +175,8 @@ private:
     std::mutex cloud_data_mutex_;                              // 保护点云数据的互斥锁
     std::condition_variable cloud_data_cv_;                    // 条件变量，用于通知新数据到达
     bool has_new_data_;                                        // 标记是否有新数据
+
+    std::unique_ptr<AviWriter> avi_writer_;
     
     // 状态管理
     std::atomic<bool> initialized_;                            // 初始化状态
@@ -185,6 +189,7 @@ private:
     // 错误处理
     mutable std::mutex error_mutex_;                           // 错误信息互斥锁
     std::string last_error_;                                   // 最后一次错误信息
+
     
     // 回调函数
     std::shared_ptr<PointCloudMsg> getPointCloudCallback();

@@ -93,6 +93,9 @@ void RealtimeLidarClient::stop() {
     if (driver_) {
         driver_->stop();
     }
+    if(avi_writer_) {
+        avi_writer_.reset();
+    }
     
     running_ = false;
     connected_ = false;
@@ -107,8 +110,10 @@ RealtimeLidarClient::~RealtimeLidarClient() {
 }
 
 
-bool RealtimeLidarClient::initialize(const std::string& lidar_ip) {
-    // 使用默认参数：端口6699/7788，LiDAR类型RS16，自动检测本机IP
+bool RealtimeLidarClient::open(const std::string& lidar_ip, std::string save_path) {
+    if(save_path != ""){
+        avi_writer_ = std::make_unique<AviWriter>(save_path, 10);
+    }
     return initialize(lidar_ip, 6699, 7788, LidarType::RSEM4, "0.0.0.0");
 }
 
@@ -211,6 +216,9 @@ void RealtimeLidarClient::force_stop() {
             } catch (...) {
                 // 忽略停止过程中的异常
             }
+        }
+        if(avi_writer_) {
+            avi_writer_.reset();
         }
         
         // 强制清理资源

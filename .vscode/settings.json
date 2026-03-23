@@ -1,0 +1,27 @@
+{
+    "files.associations": {
+        "algorithm": "cpp",
+        "xiosbase": "cpp",
+        "xlocale": "cpp",
+        "xutility": "cpp",
+        "mutex": "cpp",
+        "chrono": "cpp",
+        "limits": "cpp",
+        "utility": "cpp",
+        "valarray": "cpp",
+        "fstream": "cpp",
+        "functional": "cpp",
+        "sstream": "cpp",
+        "xlocmes": "cpp",
+        "vector": "cpp",
+        "charconv": "cpp",
+        "filesystem": "cpp",
+        "xhash": "cpp",
+        "iomanip": "cpp",
+        "thread": "cpp",
+        "xlocmon": "cpp",
+        "xlocnum": "cpp",
+        "xstring": "cpp",
+        "memory": "cpp"
+    }
+}

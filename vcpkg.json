@@ -1,0 +1,9 @@
+{
+  "name": "rs-xue",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "zlib",
+    "pcapplusplus",
+    "avcpp"
+  ]
+}

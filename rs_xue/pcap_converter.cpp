@@ -1,4 +1,5 @@
 #include "pcap_converter.h"
+#include <cstring>
 
 // 全局队列定义
 SyncQueue<std::shared_ptr<PointCloudMsg>> free_cloud_queue;
@@ -30,170 +31,256 @@ void exceptionCallback(const Error& code)
   // Note: This callback function runs in the packet-receving and packet-parsing/point-cloud_constructing thread of the
   // driver,
   //       so please DO NOT do time-consuming task here.
-  RS_WARNING << code.toString() << RS_REND;
-  exit(1);
+  RS_WARNING << code.toString() + " in pcap_converter" << RS_REND;
+//   exit(1);
 }
 
-void saveNpy(const std::string& path,
-             const float* data,
-             const std::vector<size_t>& shape)
-{
-    cnpy::npy_save(path, data, shape, "w");   // "w" = 覆盖写
-}
 
-void processCloud(const std::string& output_dir, int num_frames)
-{
-    while (true) {
-        std::shared_ptr<PointCloudMsg> msg = stuffed_cloud_queue.popWait();
-        if (!msg) continue;
-        const size_t N = msg->points.size();
-        RS_MSG << "msg: " << msg->seq << " point cloud size: " << msg->points.size() << RS_REND; 
-        std::vector<float> buf(N * 3);
-        for (size_t i = 0; i < N; ++i) {
-            buf[i*3+0] = msg->points[i].x;
-            buf[i*3+1] = msg->points[i].y;
-            buf[i*3+2] = msg->points[i].z;
+
+// =============== PcapReader 实现 ===============
+PcapReader::PcapReader()
+    : driver_(std::make_unique<robosense::lidar::LidarDriver<PointCloudMsg>>()),
+      avi_driver_(std::make_unique<AviDriver<PointCloudMsg>>()),
+      initialized_(false),
+      running_(false),
+      should_stop_(false),
+      has_calib_(false),
+      has_ranges_(false) {}
+
+
+PcapReader::~PcapReader() { stop(); }
+
+bool PcapReader::open(const std::string& pcap_path, std::string save_path) {
+    try {
+        if(save_path != ""){
+            init_writer(save_path);
         }
-        std::ostringstream oss;
-        oss << output_dir << "/cloud_"
-            << std::setw(6) << std::setfill('0') << msg->seq << "_"
-            << std::fixed << std::setprecision(6) << msg->points.front().timestamp
-            << ".npy";
-        saveNpy(oss.str(), buf.data(), {N, 3});
-        free_cloud_queue.push(msg);
-        if(msg->seq > num_frames) break;
-    }
-}
+        param_.input_param.pcap_path = pcap_path.c_str();
+        if(pcap_path.substr(pcap_path.size() - 4) == ".avi"){
+            avi_driver_ = std::make_unique<AviDriver<PointCloudMsg>>();
+            param_.input_param.pcap_path = pcap_path; // AVI驱动复用pcap_path字段
+            RS_MSG << "Using AVI driver for file: " << pcap_path << RS_REND;
+            avi_driver_->regPointCloudCallback(
+                [this]() { return this->onGetPointCloud(); },
+                [this](std::shared_ptr<PointCloudMsg> msg) { this->onReturnPointCloud(msg); }
+            );
 
-void processCloudWithCalib(const std::string& output_dir,
-                           const float* R,
-                           const float* t,
-                           const float* ranges,
-                           int num_frames)
-{
-    float x_min = ranges[0];
-    float x_max = ranges[1];
-    float y_min = ranges[2];
-    float y_max = ranges[3];
-    float z_min = ranges[4];
-    float z_max = ranges[5];
+            avi_driver_->regExceptionCallback(
+                [this](const Error& code) { this->onException(code); }
+            );
 
-    while (true)
-    {
-        std::shared_ptr<PointCloudMsg> msg = stuffed_cloud_queue.popWait();
-
-        const size_t N = msg->points.size();
-        RS_MSG << "msg: " << msg->seq << " point cloud size: " << msg->points.size() << RS_REND;
-
-        std::vector<float> buf;
-        buf.reserve(N * 3);
-
-        for (size_t i = 0; i < N; ++i)
-        {
-            float x = msg->points[i].x;
-            float y = msg->points[i].y;
-            float z = msg->points[i].z;
-
-            float x_new = R[0] * x + R[1] * y + R[2] * z + t[0];
-            float y_new = R[3] * x + R[4] * y + R[5] * z + t[1];
-            float z_new = R[6] * x + R[7] * y + R[8] * z + t[2];
-
-            if (x_new >= x_min && x_new <= x_max &&
-                y_new >= y_min && y_new <= y_max &&
-                z_new >= z_min && z_new <= z_max)
-            {
-                buf.push_back(x_new);
-                buf.push_back(y_new);
-                buf.push_back(z_new);
+            // 初始化AVI驱动
+            if (!avi_driver_->init(param_)) {
+                return false;
             }
-        }
-
-        if (!buf.empty())
-        {
-            std::ostringstream oss;
-            oss << output_dir << "/cloud_"
-                << std::setw(6) << std::setfill('0') << msg->seq << "_"
-                << std::fixed << std::setprecision(6) << msg->points.front().timestamp
-                << ".npy";
-            saveNpy(oss.str(), buf.data(), {buf.size() / 3, 3});
+            initialized_ = true;
+            return start();
         }else{
-            RS_MSG << "msg: empty buffer" << RS_REND;
-        }
+            param_.input_type = InputType::PCAP_FILE;
+            param_.input_param.msop_port = 6699;
+            param_.input_param.difop_port = 7788;
+            param_.input_param.pcap_repeat = false;
+            param_.decoder_param.wait_for_difop = false;
+            param_.lidar_type = LidarType::RSEM4;
 
-        free_cloud_queue.push(msg);
-        if (msg->seq > num_frames)
-            break;
+            driver_->regPointCloudCallback(
+                [this]() { return this->onGetPointCloud(); },
+                [this](std::shared_ptr<PointCloudMsg> msg) { this->onReturnPointCloud(msg); }
+            );
+            driver_->regExceptionCallback([this](const robosense::lidar::Error& code) { this->onException(code); });
+
+            if (!driver_->init(param_)) {
+                RS_ERROR << "PcapReader: Driver init failed" << RS_REND;
+                return false;
+            }
+            initialized_ = true;
+            return start();
+
+        }
+        
+    } catch (...) {
+        return false;
     }
 }
 
-int convert_pcap(const std::string& from_name, const std::string& to_name, int num_frames) {
-  RS_TITLE << "------------------------------------------------------" << RS_REND;
-  RS_TITLE << "            RS_Driver Core Version: v" << getDriverVersion() << RS_REND;
-  RS_TITLE << "------------------------------------------------------" << RS_REND;
+bool PcapReader::start() {
+    if (!initialized_) return false;
+    if (running_) return true;
 
-  RSDriverParam param;  ///< Create a parameter object
-  param.input_type = InputType::PCAP_FILE;
-  param.input_param.pcap_path = from_name.c_str();  ///< Set the pcap file directory
-  param.input_param.msop_port = 6699;                          ///< Set the lidar msop port number, the default is 6699
-  param.input_param.pcap_repeat = false;
-  param.input_param.difop_port = 7788;                         ///< Set the lidar difop port number, the default is 7788
-  param.lidar_type = LidarType::RSEM4;                         ///< Set the lidar type. Make sure this type is correct
-  param.print();
-  LidarDriver<PointCloudMsg> driver;  ///< Declare the driver object
-  driver.regPointCloudCallback(driverGetPointCloudFromCallerCallback,
-                               driverReturnPointCloudToCallerCallback);  ///< Register the point cloud callback
-                                                                         ///< functions
-  driver.regExceptionCallback(exceptionCallback);                        ///< Register the exception callback function
-  if (!driver.init(param))                                               ///< Call the init function
-  {
-    RS_ERROR << "Driver Initialize Error..." << RS_REND;
-    return -1;
-  }
-  std::thread cloud_handle_thread = std::thread(processCloud, to_name, num_frames);
-
-  driver.start();  ///< The driver thread will start
-
-  RS_DEBUG << "RoboSense Lidar-Driver Linux pcap demo start......" << RS_REND;
-  cloud_handle_thread.join();
-  driver.stop();
-  return 0;
+    should_stop_ = false;
+    driver_->start();
+    running_ = true;
+    return true;
 }
 
-int convert_pcap_with_calib(const std::string& from_name,
-                            const std::string& to_name,
-                            const py::array_t<float>& R,
-                            const py::array_t<float>& t,
-                            const py::array_t<float>& ranges,
-                            int num_frames)
-{
+void PcapReader::stop() {
+    if (!running_) return;
+
+    should_stop_ = true;
+    // 确保任何 popWait 都能被唤醒
+    stuffed_queue_.push(std::shared_ptr<PointCloudMsg>());
+    try { driver_->stop(); } catch (...) {}
+    try { avi_driver_->stop(); } catch (...) {}
+    try { avi_writer_.reset(); } catch (...) {}
+    cleanupQueues();
+    running_ = false;
+    initialized_ = false;
+}
+
+void PcapReader::set_calib(const py::array_t<float>& R, const py::array_t<float>& t) {
     const float* R_data = static_cast<const float*>(R.request().ptr);
     const float* t_data = static_cast<const float*>(t.request().ptr);
-    const float* ranges_data = static_cast<const float*>(ranges.request().ptr);
+    calib_R_ = { R_data[0], R_data[1], R_data[2],
+                 R_data[3], R_data[4], R_data[5],
+                 R_data[6], R_data[7], R_data[8] };
+    calib_t_ = { t_data[0], t_data[1], t_data[2] };
+    has_calib_ = true;
+}
 
-    RS_TITLE << "------------------------------------------------------" << RS_REND;
-    RS_TITLE << "            RS_Driver Core Version: v" << getDriverVersion() << RS_REND;
-    RS_TITLE << "------------------------------------------------------" << RS_REND;
+void PcapReader::set_ranges(const py::array_t<float>& ranges) {
+    const float* r = static_cast<const float*>(ranges.request().ptr);
+    ranges_ = { r[0], r[1], r[2], r[3], r[4], r[5] };
+    has_ranges_ = true;
+}
 
-    RSDriverParam param;
-    param.input_type = InputType::PCAP_FILE;
-    param.input_param.pcap_path = from_name.c_str();
-    param.input_param.msop_port = 6699;
-    param.input_param.pcap_repeat = false;
-    param.input_param.difop_port = 7788;
-    param.lidar_type = LidarType::RSEM4;
-    param.print();
-    LidarDriver<PointCloudMsg> driver;
-    driver.regPointCloudCallback(driverGetPointCloudFromCallerCallback, driverReturnPointCloudToCallerCallback);
-    driver.regExceptionCallback(exceptionCallback);
-    if (!driver.init(param))
-    {
-        RS_ERROR << "Driver Initialize Error..." << RS_REND;
-        return -1;
+std::shared_ptr<PointCloudMsg> PcapReader::onGetPointCloud() {
+    auto msg = free_queue_.pop();
+    if (msg) return msg;
+    return std::make_shared<PointCloudMsg>();
+}
+
+void PcapReader::onReturnPointCloud(std::shared_ptr<PointCloudMsg> msg) {
+    while(!stuffed_queue_.empty()){
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
-    std::thread cloud_handle_thread = std::thread(processCloudWithCalib, to_name, R_data, t_data, ranges_data, num_frames);
-    driver.start();
-    RS_DEBUG << "RoboSense Lidar-Driver Linux pcap demo start......" << RS_REND;
-    cloud_handle_thread.join();
-    driver.stop();
-    return 0;
+    stuffed_queue_.push(msg);
+}
+
+void PcapReader::onException(const robosense::lidar::Error& code) {
+    RS_WARNING << "PcapReader Exception: " << code.toString() << " nothing" << RS_REND;
+    // 当PCAP读取完成（Info_PcapExit）或出现非信息级错误时，通知退出
+    // const std::string s = code.toString();
+    // if (s.find("Info_PcapExit") != std::string::npos) {
+    //     should_stop_ = true;
+    //     // 唤醒等待的 get()
+    //     data_cv_.notify_all();
+    //     // 推送一个空消息以唤醒 popWait 立即退出
+    //     stuffed_queue_.push(std::shared_ptr<PointCloudMsg>());
+    // }
+}
+
+// processingLoop 已移除：直接在 get_numpy() 中逐帧处理，避免覆盖/跳帧
+
+pybind11::object PcapReader::get_point_xyz() {
+    if (should_stop_) return pybind11::none();
+
+    // 直接阻塞等待下一帧（不做后台聚合），保证一帧不丢
+    auto msg = stuffed_queue_.popWait();
+    if (!msg) {
+        // 可能是退出信号
+        return pybind11::none();
+    }
+    if(avi_writer_){
+        avi_writer_->write(msg);
+    }
+
+    const size_t N = msg->points.size();
+    std::vector<float> buf;
+    buf.reserve(N * 3);
+
+    for (size_t i = 0; i < N; ++i) {
+        const auto& p = msg->points[i];
+        float x = p.x, y = p.y, z = p.z;
+        float x_new = x, y_new = y, z_new = z;
+        if (has_calib_) {
+            x_new = calib_R_[0]*x + calib_R_[1]*y + calib_R_[2]*z + calib_t_[0];
+            y_new = calib_R_[3]*x + calib_R_[4]*y + calib_R_[5]*z + calib_t_[1];
+            z_new = calib_R_[6]*x + calib_R_[7]*y + calib_R_[8]*z + calib_t_[2];
+        }
+        if (has_ranges_) {
+            if (x_new < ranges_[0] || x_new > ranges_[1] ||
+                y_new < ranges_[2] || y_new > ranges_[3] ||
+                z_new < ranges_[4] || z_new > ranges_[5]) {
+                continue;
+            }
+        }
+        buf.push_back(x_new);
+        buf.push_back(y_new);
+        buf.push_back(z_new);
+    }
+
+    size_t count = buf.size() / 3;
+    auto arr = pybind11::array_t<float>({ static_cast<pybind11::ssize_t>(count), static_cast<pybind11::ssize_t>(3) });
+    auto view = arr.request();
+    float* ptr = static_cast<float*>(view.ptr);
+    if (!buf.empty()) {
+        std::memcpy(ptr, buf.data(), buf.size() * sizeof(float));
+    }
+
+    // 归还消息供驱动复用
+    free_queue_.push(msg);
+
+    return arr;
+}
+pybind11::object PcapReader::get_point_xyzi() {
+    if (should_stop_) return pybind11::none();
+
+    auto msg = stuffed_queue_.popWait();
+    if (!msg) {
+        // 可能是退出信号
+        return pybind11::none();
+    }
+
+    if(avi_writer_){
+        avi_writer_->write(msg);
+    }
+
+    const size_t N = msg->points.size();
+    std::vector<float> buf;
+    buf.reserve(N * 4);
+
+    for (size_t i = 0; i < N; ++i) {
+        const auto& p = msg->points[i];
+        float x = p.x, y = p.y, z = p.z;
+        float intensity = static_cast<float>(p.intensity);
+        float x_new = x, y_new = y, z_new = z;
+        if (has_calib_) {
+            x_new = calib_R_[0]*x + calib_R_[1]*y + calib_R_[2]*z + calib_t_[0];
+            y_new = calib_R_[3]*x + calib_R_[4]*y + calib_R_[5]*z + calib_t_[1];
+            z_new = calib_R_[6]*x + calib_R_[7]*y + calib_R_[8]*z + calib_t_[2];
+        }
+        if (has_ranges_) {
+            if (x_new < ranges_[0] || x_new > ranges_[1] ||
+                y_new < ranges_[2] || y_new > ranges_[3] ||
+                z_new < ranges_[4] || z_new > ranges_[5]) {
+                continue;
+            }
+        }
+        buf.push_back(x_new);
+        buf.push_back(y_new);
+        buf.push_back(z_new);
+        buf.push_back(intensity);
+    }
+
+    size_t count = buf.size() / 4;
+    auto arr = pybind11::array_t<float>({ static_cast<pybind11::ssize_t>(count), static_cast<pybind11::ssize_t>(4) });
+    auto view = arr.request();
+    float* ptr = static_cast<float*>(view.ptr);
+    if (!buf.empty()) {
+        std::memcpy(ptr, buf.data(), buf.size() * sizeof(float));
+    }
+
+    // 归还消息供驱动复用
+    free_queue_.push(msg);
+
+    return arr;
+}
+
+bool PcapReader::init_writer(const std::string& avi_path){
+    avi_writer_ = std::make_unique<AviWriter>(avi_path, 10);
+    return true;
+}
+void PcapReader::cleanupQueues() {
+    while (auto m = free_queue_.pop()) {}
+    while (auto m = stuffed_queue_.pop()) {}
 }
