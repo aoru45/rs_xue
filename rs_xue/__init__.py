@@ -1,4 +1,6 @@
-from .rs_xue_core import convert_pcap
+"""Python package exports for the rs_xue extension module."""
 
-__all__ = ['convert_pcap']
-__version__ = '1.0.0'
+from ._rs_xue import Client, PcapReader
+
+__all__ = ["Client", "PcapReader"]
+__version__ = "1.0.0"

@@ -16,8 +16,8 @@ set(PYBIND11_FINDPYTHON ON)
 find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
 message(STATUS "Using Python: ${Python3_EXECUTABLE}")
 
-add_subdirectory(pybind11)
-pybind11_add_module(rs_xue
+find_package(pybind11 CONFIG REQUIRED)
+pybind11_add_module(_rs_xue
     rs_xue/binding.cc
     rs_xue/realtime_lidar_client.cpp
     rs_xue/pcap_converter.cpp
@@ -40,19 +40,37 @@ else()
   target_link_libraries(rs_driver INTERFACE pthread)
 endif()
 
-target_include_directories(rs_xue PRIVATE
+target_include_directories(_rs_xue PRIVATE
   ${Python3_INCLUDE_DIRS}
   ${Python3_NumPy_INCLUDE_DIRS}
   ${rs_driver_INCLUDE_DIRS}
 )
 
-target_link_libraries(rs_xue PRIVATE
+target_link_libraries(_rs_xue PRIVATE
   ZLIB::ZLIB
   rs_driver
   avcpp::avcpp
 )
 
-install(TARGETS rs_xue
+if(APPLE)
+  target_link_libraries(_rs_xue PRIVATE
+    "-framework Foundation"
+    "-framework CoreAudio"
+    "-framework AVFoundation"
+    "-framework CoreGraphics"
+    "-framework OpenGL"
+    "-framework CoreImage"
+    "-framework AppKit"
+    "-framework AudioToolbox"
+    "-framework VideoToolbox"
+    "-framework CoreFoundation"
+    "-framework CoreMedia"
+    "-framework CoreVideo"
+    "-framework CoreServices"
+  )
+endif()
+
+install(TARGETS _rs_xue
   LIBRARY DESTINATION rs_xue
   RUNTIME DESTINATION rs_xue
   ARCHIVE DESTINATION rs_xue

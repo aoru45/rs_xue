@@ -1,4 +1,0 @@
-include rs_xue/*.so
-include rs_xue/*.pyd
-include README.md
-include LICENSE

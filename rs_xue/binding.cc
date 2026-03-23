@@ -8,13 +8,16 @@
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-PYBIND11_MODULE(rs_xue, m) {
+PYBIND11_MODULE(_rs_xue, m) {
     m.doc() = "RoboSense LiDAR driver with real-time support"; // 模块文档字符串
     
     // 绑定RealtimeLidarClient类
     py::class_<rs_realtime::RealtimeLidarClient>(m, "Client")
         .def(py::init<>())
-        .def("open", &PcapReader::open, py::arg("lidar_ip"), py::arg("save_path"))
+        .def("open",
+             &rs_realtime::RealtimeLidarClient::open,
+             py::arg("lidar_ip"),
+             py::arg("save_path") = "")
         .def("get", &rs_realtime::RealtimeLidarClient::get_numpy,
              "Get point cloud data as numpy array with shape (N, 3) containing [x, y, z] coordinates")
         .def("set_calib", &rs_realtime::RealtimeLidarClient::set_calib,
@@ -32,4 +35,3 @@ PYBIND11_MODULE(rs_xue, m) {
         .def("get_xyzi", &PcapReader::get_point_xyzi)
         .def("stop", &PcapReader::stop);
 }
-

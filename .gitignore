@@ -2,8 +2,10 @@
 *.pyc
 *.so
 build/
-crs_xue_package/rs_xue
+dist/
+*.egg-info/
 *.pth
 *.obj
-rs_xue_package/rs_xue.egg-info
+.venv*/
 tools/*
+vcpkg_installed/*

@@ -2,14 +2,19 @@
 #define PRECISE_SLEEP_H_
 
 #include <cmath>
-#include <thread>
 #include <chrono>
+#include <thread>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
 #pragma comment(lib, "winmm.lib")
+#else
+#include <cerrno>
+#include <ctime>
+#endif
 
+#ifdef _WIN32
 struct WinTimeHelper {
     WinTimeHelper() {
         TIMECAPS tc;
@@ -50,6 +55,9 @@ inline void precise_sleep(double sec) {
         std::this_thread::yield();      // 或者 _mm_pause() / YieldProcessor()
     }
 
+#elif defined(__APPLE__)
+    // macOS does not provide clock_nanosleep/TIMER_ABSTIME.
+    std::this_thread::sleep_for(std::chrono::duration<double>(sec));
 #else
     // --- Linux / POSIX 分支 ---
     using namespace std::chrono;
