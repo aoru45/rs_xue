@@ -51,8 +51,7 @@ public:
     void set_calib(const py::array_t<float>& R, const py::array_t<float>& t);
     void set_ranges(const py::array_t<float>& ranges);
 
-    pybind11::object get_point_xyz();
-    pybind11::object get_point_xyzi();
+    pybind11::object get(bool return_intensity = false);
 
 private:
     std::unique_ptr<robosense::lidar::LidarDriver<PointCloudMsg>> driver_;

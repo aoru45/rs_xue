@@ -169,9 +169,9 @@ void PcapReader::onException(const robosense::lidar::Error& code) {
     // }
 }
 
-// processingLoop 已移除：直接在 get_numpy() 中逐帧处理，避免覆盖/跳帧
+// processingLoop 已移除：直接在 get() 中逐帧处理，避免覆盖/跳帧
 
-pybind11::object PcapReader::get_point_xyz() {
+pybind11::object PcapReader::get(bool return_intensity) {
     if (should_stop_) return pybind11::none();
 
     // 直接阻塞等待下一帧（不做后台聚合），保证一帧不丢
@@ -185,8 +185,9 @@ pybind11::object PcapReader::get_point_xyz() {
     }
 
     const size_t N = msg->points.size();
+    const size_t width = return_intensity ? 4 : 3;
     std::vector<float> buf;
-    buf.reserve(N * 3);
+    buf.reserve(N * width);
 
     for (size_t i = 0; i < N; ++i) {
         const auto& p = msg->points[i];
@@ -207,63 +208,13 @@ pybind11::object PcapReader::get_point_xyz() {
         buf.push_back(x_new);
         buf.push_back(y_new);
         buf.push_back(z_new);
-    }
-
-    size_t count = buf.size() / 3;
-    auto arr = pybind11::array_t<float>({ static_cast<pybind11::ssize_t>(count), static_cast<pybind11::ssize_t>(3) });
-    auto view = arr.request();
-    float* ptr = static_cast<float*>(view.ptr);
-    if (!buf.empty()) {
-        std::memcpy(ptr, buf.data(), buf.size() * sizeof(float));
-    }
-
-    // 归还消息供驱动复用
-    free_queue_.push(msg);
-
-    return arr;
-}
-pybind11::object PcapReader::get_point_xyzi() {
-    if (should_stop_) return pybind11::none();
-
-    auto msg = stuffed_queue_.popWait();
-    if (!msg) {
-        // 可能是退出信号
-        return pybind11::none();
-    }
-
-    if(avi_writer_){
-        avi_writer_->write(msg);
-    }
-
-    const size_t N = msg->points.size();
-    std::vector<float> buf;
-    buf.reserve(N * 4);
-
-    for (size_t i = 0; i < N; ++i) {
-        const auto& p = msg->points[i];
-        float x = p.x, y = p.y, z = p.z;
-        float intensity = static_cast<float>(p.intensity);
-        float x_new = x, y_new = y, z_new = z;
-        if (has_calib_) {
-            x_new = calib_R_[0]*x + calib_R_[1]*y + calib_R_[2]*z + calib_t_[0];
-            y_new = calib_R_[3]*x + calib_R_[4]*y + calib_R_[5]*z + calib_t_[1];
-            z_new = calib_R_[6]*x + calib_R_[7]*y + calib_R_[8]*z + calib_t_[2];
+        if (return_intensity) {
+            buf.push_back(static_cast<float>(p.intensity));
         }
-        if (has_ranges_) {
-            if (x_new < ranges_[0] || x_new > ranges_[1] ||
-                y_new < ranges_[2] || y_new > ranges_[3] ||
-                z_new < ranges_[4] || z_new > ranges_[5]) {
-                continue;
-            }
-        }
-        buf.push_back(x_new);
-        buf.push_back(y_new);
-        buf.push_back(z_new);
-        buf.push_back(intensity);
     }
 
-    size_t count = buf.size() / 4;
-    auto arr = pybind11::array_t<float>({ static_cast<pybind11::ssize_t>(count), static_cast<pybind11::ssize_t>(4) });
+    size_t count = buf.size() / width;
+    auto arr = pybind11::array_t<float>({ static_cast<pybind11::ssize_t>(count), static_cast<pybind11::ssize_t>(width) });
     auto view = arr.request();
     float* ptr = static_cast<float*>(view.ptr);
     if (!buf.empty()) {

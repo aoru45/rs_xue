@@ -335,7 +335,7 @@ void RealtimeLidarClient::cleanup() {
 }
 
 // 将get_numpy方法移到namespace内部
-py::object RealtimeLidarClient::get_numpy() {
+py::object RealtimeLidarClient::get_numpy(bool return_intensity) {
     PointCloudData cloud_data;
     if (!get(cloud_data)) {
         return py::none();
@@ -347,9 +347,10 @@ py::object RealtimeLidarClient::get_numpy() {
     }
     
     // 直接创建NumPy数组，避免不必要的检查
+    const py::ssize_t width = return_intensity ? 4 : 3;
     auto result = py::array_t<float>({
-        static_cast<py::ssize_t>(point_count), 
-        static_cast<py::ssize_t>(3)
+        static_cast<py::ssize_t>(point_count),
+        width
     });
     
     auto buf = result.request();
@@ -357,9 +358,12 @@ py::object RealtimeLidarClient::get_numpy() {
     
     // 高效的内存拷贝，避免逐个元素赋值
     for (size_t i = 0; i < point_count; ++i) {
-        ptr[i * 3 + 0] = cloud_data.x[i];
-        ptr[i * 3 + 1] = cloud_data.y[i];
-        ptr[i * 3 + 2] = cloud_data.z[i];
+        ptr[i * width + 0] = cloud_data.x[i];
+        ptr[i * width + 1] = cloud_data.y[i];
+        ptr[i * width + 2] = cloud_data.z[i];
+        if (return_intensity) {
+            ptr[i * width + 3] = cloud_data.intensity[i];
+        }
     }
     
     return result;

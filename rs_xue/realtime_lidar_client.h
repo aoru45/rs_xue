@@ -109,7 +109,7 @@ public:
      * @brief 获取点云数据作为NumPy数组
      * @return pybind11::object NumPy数组或None
      */
-    pybind11::object get_numpy();
+    pybind11::object get_numpy(bool return_intensity = false);
     
     /**
      * @brief 获取点云数据并转换为适合Python的格式

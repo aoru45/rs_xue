@@ -26,4 +26,10 @@ import rs_xue
 
 client = rs_xue.Client()
 reader = rs_xue.PcapReader()
+
+points_xyz = client.get()
+points_xyzi = client.get(return_intensity=True)
+
+pcap_xyz = reader.get()
+pcap_xyzi = reader.get(return_intensity=True)
 ```
