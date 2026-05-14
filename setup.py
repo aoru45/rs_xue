@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -96,6 +97,24 @@ class CMakeBuild(build_ext):
             ["cmake", "--build", str(build_temp), *build_args],
             check=True,
         )
+
+        # Copy dependency DLLs to the extension directory
+        self._copy_dll_dependencies(extdir)
+
+    def _copy_dll_dependencies(self, extdir: pathlib.Path) -> None:
+        """Copy required DLL files from vcpkg to the extension directory."""
+        dll_source_dir = ROOT / "build" / "vcpkg_installed" / "x64-windows" / "bin"
+        
+        if not dll_source_dir.exists():
+            return
+        
+        for dll_file in dll_source_dir.glob("*.dll"):
+            try:
+                dest_file = extdir / dll_file.name
+                shutil.copy2(dll_file, dest_file)
+                print(f"Copied {dll_file.name} to {extdir}")
+            except Exception as e:
+                print(f"Warning: Failed to copy {dll_file.name}: {e}")
 
 
 setup(

@@ -2,6 +2,8 @@
 
 ## 安装
 
+### Linux/macOS
+
 在项目根目录执行：
 
 ```bash
@@ -18,6 +20,29 @@ pip install -e .
 export CMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 pip install -e .
 ```
+
+### Windows
+
+1. 首先安装构建依赖：
+
+```powershell
+python -m pip install numpy setuptools wheel pybind11
+```
+
+2. 编译C++扩展并安装：
+
+```powershell
+python setup.py build_ext --inplace
+python -m pip install -e . --no-build-isolation
+```
+
+或者直接用一个命令安装（会自动编译）：
+
+```powershell
+python -m pip install -e . --no-build-isolation
+```
+
+编译脚本会自动从 vcpkg 的依赖目录复制所需的 DLL 文件到模块目录，无需手动操作。
 
 ## 使用
 
