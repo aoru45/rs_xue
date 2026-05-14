@@ -30,7 +30,6 @@ void RealtimeLidarClient::processCloudThread() {
             continue;
         }
         
-        // 添加与demo_online.cpp相同的调试打印，检查xyz三个坐标
         size_t N = msg->points.size();
        
         
